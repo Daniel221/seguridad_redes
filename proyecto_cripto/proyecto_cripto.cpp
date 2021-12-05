@@ -6,8 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "sodium.h"
+#include <iostream>
 
-bool cipherFile(const char* textFileName, const char* cipherFileName, unsigned char* key, unsigned char* nonce) {
+bool cipherFile(const char* textFileName,  unsigned char* key, unsigned char* nonce) {
 	FILE * fplaintext;
 	FILE * fciphertext;
 
@@ -22,14 +23,21 @@ bool cipherFile(const char* textFileName, const char* cipherFileName, unsigned c
 	unsigned char* cipher_text = new unsigned char[plain_text_len];
 	int errorcode = crypto_stream_chacha20_xor(cipher_text, plain_text, plain_text_len, nonce, key);
 
-	ferr = fopen_s(&fciphertext, cipherFileName, "wb");
+	char aux[40];
+
+	strcpy_s(aux, 40, "c_");
+	strcat_s(aux, 40, textFileName);
+
+	ferr = fopen_s(&fciphertext, aux, "wb");
 	fwrite(cipher_text, 1, plain_text_len, fciphertext);
 	fclose(fciphertext);
+
+	printf("\n-I- El archivo se ha cifrado\n\n");
 
 	return true;
 }
 
-bool decipherFile(const char* textFileName, const char* cipherFileName, unsigned char* key, unsigned char* nonce) {
+bool decipherFile(const char* textFileName,  unsigned char* key, unsigned char* nonce) {
 	FILE* fciphertext;
 	FILE* fdeciphertext;
 
@@ -44,9 +52,16 @@ bool decipherFile(const char* textFileName, const char* cipherFileName, unsigned
 	unsigned char* decipher_text = new unsigned char[cipher_text_len];
 	int errorcode = crypto_stream_chacha20_xor(decipher_text, cipher_text, cipher_text_len, nonce, key);
 
-	ferr = fopen_s(&fdeciphertext, cipherFileName, "wb");
+	char aux[40];
+
+	strcpy_s(aux, 40, "dc_");
+	strcat_s(aux, 40, textFileName);
+
+	ferr = fopen_s(&fdeciphertext, aux, "wb");
 	fwrite(decipher_text, 1, cipher_text_len, fdeciphertext);
 	fclose(fdeciphertext);
+
+	printf("-I- Archivo decifrado\n\n");
 
 	return true;
 }
@@ -66,12 +81,17 @@ bool signFile(const char* fileName, unsigned char* sk) {
 
 	crypto_sign_detached(sig, NULL, msg, msg_len, sk);
 
-	ferr = fopen_s(&fplaintext, "signedfile.txt", "wb");
+	char aux[40];
+
+	strcpy_s(aux, 40, "s_");
+	strcat_s(aux, 40, fileName);
+
+	ferr = fopen_s(&fplaintext, aux, "wb");
 	fwrite(sig, 1, crypto_sign_BYTES, fplaintext);
 	fwrite(msg, 1, msg_len, fplaintext);
 	fclose(fplaintext);
 
-	printf("longitud del archivo %ld\n", msg_len);
+	printf("\n-I- Se ha firmado el archivo\n\n");
 
 	return true;
 }
@@ -91,10 +111,10 @@ bool signCheck(const char* fileName, unsigned char* pk) {
 	fclose(fplaintext);
 
 	if (crypto_sign_verify_detached(sig, msg, signed_msg_len - crypto_sign_BYTES, pk) != 0) {
-		printf("Firma Incorrecta!");
+		printf("-I- Firma Incorrecta!\n\n");
 		return false;
 	}
-	printf("Firma correcta!");
+	printf("-I- Firma correcta!\n\n");
 	return true;
 }
 
@@ -111,6 +131,8 @@ bool keysGeneration(const char* fileName, unsigned char* key, unsigned char* non
 		fread(nonce, 1, crypto_stream_chacha20_NONCEBYTES, fkeys);
 		fread(pk, 1, crypto_sign_PUBLICKEYBYTES, fkeys);
 		fread(sk, 1, crypto_sign_SECRETKEYBYTES, fkeys);
+
+		printf("\n-I-*****Se Cargaron las claves*****\n\n");
 	}	
 	else {
 		ferr = fopen_s(&fkeys, fileName, "wb");
@@ -122,6 +144,8 @@ bool keysGeneration(const char* fileName, unsigned char* key, unsigned char* non
 		fwrite(nonce, 1, crypto_stream_chacha20_NONCEBYTES, fkeys);
 		fwrite(pk, 1, crypto_sign_PUBLICKEYBYTES, fkeys);
 		fwrite(sk, 1, crypto_sign_SECRETKEYBYTES, fkeys);
+
+		printf("\n-I-*****Se generaron y cargaron las claves*****\n\n");
 	}
 	fclose(fkeys);
 	return true;
@@ -129,35 +153,36 @@ bool keysGeneration(const char* fileName, unsigned char* key, unsigned char* non
 
 void menu() {
 	char option;
-	char* fileName;
+	char fileName[30];
 	unsigned char key[crypto_stream_chacha20_KEYBYTES];
 	unsigned char nonce[crypto_stream_chacha20_NONCEBYTES];
 	unsigned char pk[crypto_sign_PUBLICKEYBYTES];
 	unsigned char sk[crypto_sign_SECRETKEYBYTES];
 
 	do {
-		//system("CLS");
-		//displayMenu();
-		printf("option");
+		fflush(stdin);
+		fflush(stdout);
+		displayMenu();
 		option = getchar();
+		//system("CLS");
 		printf("\ningrese el nombre del archivo: ");
-
+		scanf_s("%29s", fileName, (unsigned)_countof(fileName));
 		switch (option)
 		{
 		case '1'://Generacion y recuperacion de claves hacia o desde 1 archivo
-			keysGeneration("keys.txt", key, nonce, pk, sk);
+			keysGeneration(fileName, key, nonce, pk, sk);
 			break;
 		case '2': //cifrado
-			cipherFile("plaintext.txt", "ciphertext.txt", key, nonce);
+			cipherFile(fileName,  key, nonce);
 			break;
 		case '3': //decifrado
-			decipherFile("ciphertext.txt", "deciphertext.txt", key, nonce);
+			decipherFile(fileName, key, nonce);
 			break;
 		case '4': //firma de archivos
-			signFile("plaintext.txt", sk);
+			signFile(fileName, sk);
 			break;
 		case '5': //verficacion firma
-			signCheck("signedfile.txt", pk);
+			signCheck(fileName, pk);
 			break;
 		case '6': //salida del sistema
 			printf("\nHasta la proxima!");
@@ -165,6 +190,7 @@ void menu() {
 		default:
 			break;
 		}
+		getchar();//para evitar problemas con el buffer de entrada de datos
 	} while (option != '6');
 }
 
